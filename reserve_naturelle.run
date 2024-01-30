@@ -1,0 +1,11 @@
+reset;
+reset data;
+
+model reserve_naturelle.mod;
+data reserve_naturelle_ampl.dat
+
+option solver cplex;
+solve;
+
+display x;
+display q;
