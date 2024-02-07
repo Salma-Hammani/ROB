@@ -1,4 +1,43 @@
-using JuMP, CPLEX, AmplNLWriter
+using JuMP, CPLEX
+
+function run(n, p_d, p_c, proba, alpha)
+    m = Model(CPLEX.Optimizer)
+    @variable(m, x[1:n*n], Bin)
+    @variable(m, q[1:n*n], Bin)
+
+    @constraint(m, [i in 1:p_d], log(1 - alpha[i]) >= sum(log(1 - proba[i, k, l]) * q[(k - 1) * n + l] for k in 1:n, l in 1:n))
+    @constraint(m, [i in p_d+1:p_d+p_c], log(1 - alpha[i]) >= sum(log(1 - proba[i, k, l]) * x[(k - 1) * n + l] for k in 1:n, l in 1:n))
+    @constraint(m, [k in 2:n-1, l in 2:n-1], 9 * q[(k - 1) * n + l] <= sum(x[(i - 1) * n + j] for i in k-1:k+1, j in l-1:l+1))
+    @constraint(m, [l in 1:n], q[l] == 0)
+    @constraint(m, [l in 1:n], q[(n - 1) * n + l] == 0)
+    @constraint(m, [k in 1:n], q[(k - 1) * n + 1] == 0)
+    @constraint(m, [k in 1:n], q[(k - 1) * n + n] == 0)
+
+    @objective(m, Min, sum(couts[i][j] * x[(i - 1) * n + j] for i in 1:n, j in 1:n))
+
+    start_time = time()
+    optimize!(m)
+    end_time = time()
+
+    feasibleSolutionFound = primal_status(m) == MOI.FEASIBLE_POINT
+    if feasibleSolutionFound
+        vX = JuMP.value.(x)
+        vQ = JuMP.value.(q)
+        v = JuMP.objective_value(m)
+        # println("Valeur de l'objectif : ", JuMP.objective_value(m))
+        proba_survie = zeros(p_d + p_c)
+        for i in 1:p_d
+            proba_survie[i] = 1 - prod(1 - proba[i, k, l] * vQ[(k - 1) * n + l] for k in 1:n, l in 1:n)
+        end
+        for i in p_d+1:p_d+p_c
+            proba_survie[i] = 1 - prod(1 - proba[i, k, l] * vX[(k - 1) * n + l] for k in 1:n, l in 1:n)
+        end
+        return end_time - start_time, MOI.get(m, MOI.NodeCount()), JuMP.objective_value(m), proba_survie
+    else
+        # println("No feasible solution found")
+        return false
+    end 
+end
 
 n = 10
 p = 6
@@ -29,31 +68,8 @@ couts = [[6, 6, 6, 4, 4, 4, 4, 8, 8, 8],
 
 alpha = [0.8, 0.8, 0.8, 0.6, 0.6, 0.6]
 
-m = Model(CPLEX.Optimizer)
-@variable(m, x[1:n*n], Bin)
-@variable(m, q[1:n*n], Bin)
+run(n, 3, 3, proba, alpha)
 
-@constraint(m, [i in 1:3], log(1 - alpha[i]) >= sum(log(1 - proba[i, k, l]) * q[(k - 1) * n + l] for k in 1:n, l in 1:n))
-@constraint(m, [i in 4:6], log(1 - alpha[i]) >= sum(log(1 - proba[i, k, l]) * x[(k - 1) * n + l] for k in 1:n, l in 1:n))
-@constraint(m, [k in 2:n-1, l in 2:n-1], 9 * q[(k - 1) * n + l] <= sum(x[(i - 1) * n + j] for i in k-1:k+1, j in l-1:l+1))
-@constraint(m, [l in 1:n], q[l] == 0)
-@constraint(m, [l in 1:n], q[(n - 1) * n + l] == 0)
-@constraint(m, [k in 1:n], q[(k - 1) * n + 1] == 0)
-@constraint(m, [k in 1:n], q[(k - 1) * n + n] == 0)
-
-@objective(m, Min, sum(couts[i][j] * x[(i - 1) * n + j] for i in 1:n, j in 1:n))
-
-optimize!(m)
-
-feasibleSolutionFound = primal_status(m) == MOI.FEASIBLE_POINT
-isOptimal = termination_status(m) == MOI.OPTIMAL
-if feasibleSolutionFound
-    vX = JuMP.value.(x)
-    vQ = JuMP.value.(q)
-    println("Valeur de l'objectif : ", JuMP.objective_value(m))
-else
-    println("No feasible solution found")
-end
 
 
 # C = 300

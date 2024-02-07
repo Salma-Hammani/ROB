@@ -84,18 +84,18 @@ end
 #     println("")
 # end
 
-for n in 25:30
+for n in 38:40
     println("n = " * string(n))
     couts = rand(1:10, n, n)
     A_min = rand(n * 2 : n * 7)
     A_max = rand(A_min+1:A_min + 5)
-    B = rand(A_min : 20 * A_min)
+    B = rand(A_min : 30 * A_min)
     result = run(n , couts, A_min, A_max, B)
     while (result == false)
         couts = rand(1:10, n, n)
         A_min = rand(n * 2 : n * 7)
         A_max = rand(A_min+1:A_min + 5)
-        B = rand(A_min : 25 * A_min)
+        B = rand(A_min : 30 * A_min)
         result = run(n , couts, A_min, A_max, B)
     end
     file = open("fragmentation.csv", "a")
