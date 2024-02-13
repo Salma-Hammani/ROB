@@ -1,4 +1,71 @@
-using JuMP, CPLEX, AmplNLWriter
+using JuMP, Gurobi#, AmplNLWriter
+using Distributions
+
+#Params
+sz_map = 6
+n_species = 12
+unif_rate = 0.9
+
+## Generating the terrain
+is_generated = zeros(sz_map, sz_map)
+is_seen = zeros(sz_map, sz_map)
+next_to_price = Array([(rand(0:sz_map), rand(0:sz_map))])
+price = rand(1:10, sz_map, sz_map) #couts
+
+while length(next_to_price) > 0
+	next_tile = popfirst!(next_to_price)
+	i = next_tile[1]
+	j = next_tile[2]
+	is_generated[i,j] = 1
+	n_generated_neighs = 0
+	tot_neigh_price = 0
+	## Make sure we check the neighbours later
+	if i > 1 && is_seen[i-1, j] == 0
+		is_seen[i-1, j] = 1
+		push!(next_to_price, (i-1, j))
+	elseif i > 1 && is_generated[i-1, j] == 1
+		n_generated_neighs += 1
+		tot_neigh_price += price[i-1,j]
+	end
+	if i < sz_map - 1 && is_seen[i+1, j] == 0
+		is_seen[i+1, j] = 1
+		push!(next_to_price, (i+1, j))
+	elseif i < sz_map - 1 && is_generated[i+1, j] == 1
+		n_generated_neighs += 1
+		tot_neigh_price += price[i+1,j]
+	end
+	if j > 1 && is_seen[i, j-1] == 0
+		is_seen[i, j-1] = 1
+		push!(next_to_price, (i, j-1))
+	elseif j > 1 && is_generated[i, j-1] == 1
+		n_generated_neighs += 1
+		tot_neigh_price += price[i,j-1]
+	end
+	if j < sz_map - 1 && is_seen[i, j+1] == 0
+		is_seen[i, j+1] = 1
+		push!(next_to_price, (i, j+1))
+	elseif j < sz_map - 1 && is_generated[i, j+1] == 1
+		n_generated_neighs += 1
+		tot_neigh_price += price[i,j+1]
+	end
+	gamma = unif_rate * n_generated_neighs / 3
+	price[i,j] = trunc(Int, (1 - gamma) * price[i,j] + gamma * tot_neigh_price / max(1, n_generated_neighs))
+end
+
+## Generating survival
+species_good_habitat_rate = rand(Uniform(0.0,0.2), n_species) #alpha
+zones = zeros(n_species, sz_map, sz_map)
+habitability = rand(Uniform(0,1), sz_map, sz_map)
+for spe in 1:n_species
+	for i in 1:sz_map
+        for j in 1:sz_map
+            if habitability[i,j] < rand(Uniform(0,1))/20 + species_good_habitat_rate[spe]
+                zones[spe,i,j] = 2*habitability[i,j] + rand(Uniform(0,1))/5
+            end
+        end
+    end
+end
+
 
 n = 10
 p = 6
@@ -29,7 +96,7 @@ couts = [[6, 6, 6, 4, 4, 4, 4, 8, 8, 8],
 
 alpha = [0.8, 0.8, 0.8, 0.6, 0.6, 0.6]
 
-m = Model(CPLEX.Optimizer)
+m = Model(Gurobi.Optimizer)
 @variable(m, x[1:n*n], Bin)
 @variable(m, q[1:n*n], Bin)
 
